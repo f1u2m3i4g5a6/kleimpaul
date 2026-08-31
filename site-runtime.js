@@ -121,6 +121,37 @@ function normalizeWhatsapp(value){
 }
 
 let lastSiteSettings={};
+function ensureRuntimeBackgroundLayers(){
+  if(!document.body)return {global:null,hero:null};
+  let global=document.getElementById('kp-runtime-site-background');
+  if(!global){
+    global=document.createElement('div');
+    global.id='kp-runtime-site-background';
+    global.setAttribute('aria-hidden','true');
+    document.body.prepend(global);
+  }
+  const heroHost=document.getElementById('inicio');
+  let hero=heroHost?.querySelector(':scope > .kp-runtime-hero-background')||null;
+  if(heroHost&&!hero){
+    hero=document.createElement('div');
+    hero.className='kp-runtime-hero-background';
+    hero.setAttribute('aria-hidden','true');
+    heroHost.prepend(hero);
+  }
+  return {global,hero};
+}
+function clearRuntimeBackgroundLayers(){
+  const layers=ensureRuntimeBackgroundLayers();
+  for(const layer of [layers.global,layers.hero]){
+    if(!layer)continue;
+    layer.classList.remove('is-active');
+    layer.style.removeProperty('background-image');
+    layer.style.removeProperty('background-position');
+    layer.style.removeProperty('background-size');
+    layer.style.removeProperty('filter');
+    layer.style.removeProperty('opacity');
+  }
+}
 async function applySiteSurfaceSettings(s={}){
   lastSiteSettings=s||{};
   const root=document.documentElement,body=document.body;
@@ -152,6 +183,23 @@ async function applySiteSurfaceSettings(s={}){
       const escaped=cssUrlValue(url);
       const photo=`url("${escaped}")`;
       const composite=`linear-gradient(rgba(${base},${Math.max(.12,shade)}),rgba(${base},${Math.max(.18,shade+.06)})),${photo}`;
+      const layers=ensureRuntimeBackgroundLayers();
+      if(layers.global){
+        layers.global.style.setProperty('background-image',photo);
+        layers.global.style.setProperty('background-position',position);
+        layers.global.style.setProperty('background-size',size);
+        layers.global.style.setProperty('filter',`blur(${blur}px)`);
+        layers.global.style.setProperty('opacity',String(Math.max(.18,visibility)));
+        layers.global.classList.add('is-active');
+      }
+      if(layers.hero){
+        layers.hero.style.setProperty('background-image',photo);
+        layers.hero.style.setProperty('background-position',position);
+        layers.hero.style.setProperty('background-size',size);
+        layers.hero.style.setProperty('filter',`blur(${Math.min(blur,8)}px)`);
+        layers.hero.style.setProperty('opacity',String(Math.max(.28,visibility)));
+        layers.hero.classList.add('is-active');
+      }
       [root,body].forEach(node=>{
         node.style.setProperty('--cms-site-photo',photo);
         node.style.setProperty('--cms-site-position',position);
@@ -171,11 +219,11 @@ async function applySiteSurfaceSettings(s={}){
       body.classList.add('cms-custom-site-bg');
     }else{
       ['--cms-site-photo','--cms-site-position','--cms-site-size','--cms-site-visibility','--cms-site-overlay','--cms-site-blur','--cms-hero-shade-left','--cms-hero-shade-mid','--cms-hero-shade-right'].forEach(k=>{root.style.removeProperty(k);body.style.removeProperty(k)});body.style.removeProperty('--cms-applied-site-bg');
-      body.style.removeProperty('background-image');body.classList.remove('cms-custom-site-bg');
+      body.style.removeProperty('background-image');body.classList.remove('cms-custom-site-bg');clearRuntimeBackgroundLayers();
     }
   }else{
     ['--cms-site-photo','--cms-site-position','--cms-site-size','--cms-site-visibility','--cms-site-overlay','--cms-site-blur','--cms-hero-shade-left','--cms-hero-shade-mid','--cms-hero-shade-right'].forEach(k=>{root.style.removeProperty(k);body.style.removeProperty(k)});body.style.removeProperty('--cms-applied-site-bg');
-    body.style.removeProperty('background-image');body.style.removeProperty('background-size');body.style.removeProperty('background-position');body.style.removeProperty('background-attachment');body.classList.remove('cms-custom-site-bg');
+    body.style.removeProperty('background-image');body.style.removeProperty('background-size');body.style.removeProperty('background-position');body.style.removeProperty('background-attachment');body.classList.remove('cms-custom-site-bg');clearRuntimeBackgroundLayers();
   }
 }
 window.addEventListener('kleimpaul:theme',()=>applySiteSurfaceSettings(lastSiteSettings));
@@ -317,7 +365,8 @@ function renderCatalogRows(rows){
   if(!rows.length){section.style.display='none';window.dispatchEvent(new CustomEvent('kleimpaul:catalog',{detail:{category:PAGE,rows:[]}}));return} section.style.display='';
   grid.innerHTML=rows.map(x=>{
     const specs=specArray(x);
-    return `<article class="cms-catalog-card" data-catalog-id="${escapeHTML(x.id)}">${x.image?`<img src="${escapeHTML(x.image)}" alt="${escapeHTML(x.name||'Produto')}" loading="lazy" decoding="async">`:''}<div class="cms-catalog-body">${x.badge?`<span class="cms-catalog-tag">${escapeHTML(x.badge)}</span>`:''}<h3>${escapeHTML(x.name||'Produto')}</h3>${x.description?`<p>${escapeHTML(x.description)}</p>`:''}${x.price?`<strong class="cms-price">${money(x.price)}</strong>`:''}${specs.length?`<div class="cms-specs">${specs.map(s=>`<span>${escapeHTML(s.label)}: ${escapeHTML(s.value)}</span>`).join('')}</div>`:''}</div></article>`;
+    const imageSrc=x.image||KP_EMPTY_IMAGE;
+    return `<article class="cms-catalog-card" data-catalog-id="${escapeHTML(x.id)}"><div class="cms-catalog-media ${x.image?'':'is-empty'}"><img src="${escapeHTML(imageSrc)}" data-cms-image-slot="catalog:${escapeHTML(x.id)}" alt="${escapeHTML(x.name||'Produto')}" loading="lazy" decoding="async">${x.image?'':'<span class="cms-catalog-empty-media"><i class="fa-solid fa-image"></i><b>Imagem disponível no painel</b></span>'}</div><div class="cms-catalog-body">${x.badge?`<span class="cms-catalog-tag">${escapeHTML(x.badge)}</span>`:''}<h3>${escapeHTML(x.name||'Produto')}</h3>${x.description?`<p>${escapeHTML(x.description)}</p>`:''}${x.price?`<strong class="cms-price">${money(x.price)}</strong>`:''}${specs.length?`<div class="cms-specs">${specs.map(s=>`<span>${escapeHTML(s.label)}: ${escapeHTML(s.value)}</span>`).join('')}</div>`:''}</div></article>`;
   }).join('');
   window.dispatchEvent(new CustomEvent('kleimpaul:catalog',{detail:{category:PAGE,rows}}));
   setTimeout(applyCachedOverrides,0);

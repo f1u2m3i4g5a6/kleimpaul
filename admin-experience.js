@@ -124,7 +124,46 @@
     update();window.addEventListener('resize',update,{passive:true});
   }
 
-  function init(){dashboardCommandCenter();keyboardNavigation();enhanceSections();enhanceGlobalSearch();contextAction();orderDraftFeedback();preserveWorkspaceFocus();smartTables();workspaceTools();settingsStudio();adaptiveTopbar();}
+  function quickLauncher(){
+    if($('#kpQuickLauncher'))return;
+    const layer=document.createElement('div');layer.id='kpQuickLauncher';layer.className='kp-launcher-backdrop';layer.setAttribute('aria-hidden','true');
+    layer.innerHTML=`<div class="kp-launcher" role="dialog" aria-modal="true" aria-label="Launcher rápido"><div class="kp-launcher-head"><i class="fa-solid fa-bolt"></i><input id="kpLauncherInput" autocomplete="off" placeholder="Abrir módulo ou executar ação..."/><kbd>ESC</kbd></div><div class="kp-launcher-results" id="kpLauncherResults"></div></div>`;
+    document.body.appendChild(layer);
+    const input=$('#kpLauncherInput'),results=$('#kpLauncherResults');
+    const staticActions=[
+      {label:'Novo orçamento / O.S.',desc:'Abrir Oficina e iniciar atendimento',icon:'fa-screwdriver-wrench',run:()=>{go('orders');setTimeout(()=>$('#woNew')?.click(),120)}},
+      {label:'Novo cliente',desc:'Abrir Clientes e novo cadastro',icon:'fa-user-plus',run:()=>{go('clients');setTimeout(()=>$('#customerClear')?.click(),120)}},
+      {label:'Nova venda',desc:'Abrir Vendas e iniciar documento',icon:'fa-receipt',run:()=>{go('sales');setTimeout(()=>$('#saleNew')?.click(),120)}},
+      {label:'Novo item de estoque',desc:'Abrir Estoque e limpar formulário',icon:'fa-box-open',run:()=>{go('inventory');setTimeout(()=>$('#invClear')?.click(),120)}},
+      {label:'Adicionar mídia',desc:'Abrir Biblioteca de Mídia',icon:'fa-images',run:()=>{go('media');setTimeout(()=>$('#mediaFile')?.click(),160)}},
+      {label:'Editor de imagens',desc:'Editar fotos, fundos e espaços vazios',icon:'fa-crop-simple',run:()=>go('images')},
+      {label:'Configurações visuais',desc:'Logo, favicon, fundo e cores',icon:'fa-sliders',run:()=>go('settings')},
+      {label:'Criar backup agora',desc:'Abrir proteção e backup',icon:'fa-cloud-arrow-up',run:()=>{go('backup');setTimeout(()=>$('#backupCloud')?.focus(),120)}}
+    ];
+    let visible=[],active=0;
+    const navActions=()=>$$('#nav button[data-go]').map(b=>({label:(b.textContent||'').trim(),desc:'Abrir módulo',icon:b.querySelector('i')?.className.match(/fa-[\w-]+/g)?.filter(x=>x!=='fa-solid').pop()||'fa-grid-2',run:()=>b.click()}));
+    const render=()=>{const q=(input.value||'').trim().toLowerCase();visible=[...navActions(),...staticActions].filter((a,i,arr)=>arr.findIndex(x=>x.label===a.label)===i).filter(a=>!q||`${a.label} ${a.desc}`.toLowerCase().includes(q));active=Math.min(active,Math.max(0,visible.length-1));results.innerHTML=visible.map((a,i)=>`<button class="kp-launcher-item ${i===active?'active':''}" data-kp-launcher="${i}" type="button"><i class="fa-solid ${a.icon}"></i><span><strong>${a.label.replace(/[<>]/g,'')}</strong><small>${a.desc.replace(/[<>]/g,'')}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||'<div class="note">Nenhuma ação encontrada.</div>';$$('[data-kp-launcher]',results).forEach(b=>b.onclick=()=>run(Number(b.dataset.kpLauncher)));};
+    const run=i=>{const a=visible[i];if(!a)return;close();a.run();};
+    const open=()=>{layer.classList.add('show');layer.setAttribute('aria-hidden','false');input.value='';active=0;render();setTimeout(()=>input.focus(),20)};
+    const close=()=>{layer.classList.remove('show');layer.setAttribute('aria-hidden','true')};
+    input.addEventListener('input',()=>{active=0;render()});
+    input.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();active=Math.min(visible.length-1,active+1);render()}else if(e.key==='ArrowUp'){e.preventDefault();active=Math.max(0,active-1);render()}else if(e.key==='Enter'){e.preventDefault();run(active)}else if(e.key==='Escape')close()});
+    layer.addEventListener('mousedown',e=>{if(e.target===layer)close()});
+    window.KleimpaulQuickLauncher=open;
+    document.addEventListener('keydown',e=>{if(e.altKey&&e.code==='Space'){e.preventDefault();layer.classList.contains('show')?close():open()}else if(e.key==='Escape'&&layer.classList.contains('show'))close()});
+    const tools=$('.kp-workspace-tools');if(tools&&!$('#kpLauncherButton')){const b=document.createElement('button');b.id='kpLauncherButton';b.className='kp-workspace-btn';b.type='button';b.title='Launcher rápido (Alt+Espaço)';b.innerHTML='<i class="fa-solid fa-bolt"></i>';b.onclick=open;tools.prepend(b)}
+  }
+
+  function shortcutsHelp(){
+    if($('#kpShortcutHelp'))return;
+    const layer=document.createElement('div');layer.id='kpShortcutHelp';layer.className='kp-launcher-backdrop';layer.setAttribute('aria-hidden','true');
+    const items=[['Alt + Espaço','Launcher rápido'],['Ctrl + K','Busca do painel'],['Ctrl + S','Salvar tela atual'],['Alt + N','Novo registro'],['Alt + 1…5','Dashboard / Oficina / Clientes / Estoque / Vendas'],['Alt + D','Alternar densidade'],['Alt + E','Exportar tabela'],['Alt + F','Modo foco'],['F2','Buscar cliente na Oficina'],['Esc','Fechar janelas']];
+    layer.innerHTML=`<div class="kp-launcher" role="dialog" aria-modal="true" aria-label="Atalhos"><div class="kp-launcher-head"><i class="fa-solid fa-keyboard"></i><strong style="flex:1">Atalhos do sistema</strong><kbd>ESC</kbd></div><div class="kp-help-grid">${items.map(x=>`<div class="kp-help-row"><kbd>${x[0]}</kbd><span>${x[1]}</span></div>`).join('')}</div></div>`;document.body.appendChild(layer);
+    const open=()=>{layer.classList.add('show');layer.setAttribute('aria-hidden','false')},close=()=>{layer.classList.remove('show');layer.setAttribute('aria-hidden','true')};layer.addEventListener('mousedown',e=>{if(e.target===layer)close()});
+    document.addEventListener('keydown',e=>{const tag=document.activeElement?.tagName||'';if(e.key==='?'&&!/INPUT|TEXTAREA|SELECT/.test(tag)){e.preventDefault();open()}else if(e.key==='Escape')close()});
+  }
+
+  function init(){dashboardCommandCenter();keyboardNavigation();enhanceSections();enhanceGlobalSearch();contextAction();orderDraftFeedback();preserveWorkspaceFocus();smartTables();workspaceTools();settingsStudio();adaptiveTopbar();quickLauncher();shortcutsHelp();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,80),{once:true});else setTimeout(init,80);
   new MutationObserver(()=>{dashboardCommandCenter();enhanceSections();smartTables()}).observe(document.documentElement,{childList:true,subtree:true});
 })();
