@@ -414,13 +414,51 @@ function updateSelectedImageBanner(item){
   if(!item){banner.dataset.empty='true';if(label)label.textContent='Nenhuma imagem selecionada';if(ctx)ctx.textContent='Clique em uma imagem na lista ou ative “Selecionar na prévia”.';if(locate)locate.disabled=true;return}
   banner.dataset.empty='false';if(label)label.textContent=imageLabel(item);if(ctx)ctx.textContent=`${item.selector} · ${item.width||'?'}×${item.height||'?'} px${item.emptySlot||item.manual?' · sem foto':''}`;if(locate)locate.disabled=false;
 }
+function liveImageSrcForItem(item){
+  if(!item)return '';
+  const frame=$('imgPreview');
+  try{
+    const docu=frame?.contentDocument;
+    const el=item.element&&item.element.isConnected?item.element:docu?.querySelector(baseImageSelector(item.selector));
+    if(el){
+      if(item.kind==='img'){
+        const raw=el.currentSrc||el.getAttribute('src')||el.src||'';
+        if(raw&&!isTransparentPlaceholder(raw))return raw;
+      }else{
+        const cs=frame.contentWindow.getComputedStyle(el,item.pseudo||null);
+        const raw=backgroundUrl(cs?.backgroundImage||'');
+        if(raw&&!isTransparentPlaceholder(raw))return raw;
+      }
+    }
+  }catch{}
+  return '';
+}
+function currentImageState(item,ov){
+  const gv=globalImageRuleFor(item);
+  const publishedRef=ov?.value||gv?.value||'';
+  const publishedSrc=mediaValueToSrc(publishedRef);
+  const live=liveImageSrcForItem(item);
+  const originalResolved=mediaValueToSrc(item?.originalSrc)||'';
+  const src=publishedSrc||live||item?.src||originalResolved||'';
+  const label=publishedRef||live||item?.src||item?.originalSrc||'';
+  return {src,label,gv};
+}
+function setCurrentImagePreview(src){
+  const img=$('imgCurrentPreview'),box=img?.closest('.image-compare-box');if(!img)return;
+  const real=String(src||'').trim();
+  img.src=real||ADMIN_EMPTY_IMAGE;
+  box?.classList.toggle('is-no-current',!real);
+  let empty=box?.querySelector('.current-image-empty');
+  if(!real&&box&&!empty){empty=document.createElement('div');empty.className='current-image-empty';empty.innerHTML='<i class="fa-solid fa-image"></i><strong>Sem imagem atual</strong><span>Escolha uma imagem da Mídia para preencher este espaço.</span>';box.appendChild(empty)}
+  if(empty)empty.hidden=!!real;
+}
 function selectImageItem(index){
-  const item=imageScanItems[index];if(!item)return;selectedImageItem=item;const ov=imageOverrideFor(item);
-  $('imgSelector').value=item.selector;$('imgKind').value=item.kind+(item.pseudo?` ${item.pseudo}`:'');$('imgCurrent').value=item.src||'';
+  const item=imageScanItems[index];if(!item)return;selectedImageItem=item;const ov=imageOverrideFor(item);const current=currentImageState(item,ov);
+  $('imgSelector').value=item.selector;$('imgKind').value=item.kind+(item.pseudo?` ${item.pseudo}`:'');$('imgCurrent').value=current.label||'';
   $('imgAlt').value=ov?.alt??item.alt??'';$('imgFit').value=ov?.fit||'';if($('imgAspect'))$('imgAspect').value=ov?.aspectRatio||'';$('imgPosition').value=ov?.position||'';$('imgPriority').value=ov?.priority??60;$('imgNewValue').value=ov?.value||'';
-  $('imgCurrentPreview').src=item.src||ADMIN_EMPTY_IMAGE;$('imgNewPreview').src=mediaValueToSrc(ov?.value)||item.src||ADMIN_EMPTY_IMAGE;
+  setCurrentImagePreview(current.src);$('imgNewPreview').src=mediaValueToSrc(ov?.value)||current.src||ADMIN_EMPTY_IMAGE;
   $('imgSelectedType').textContent=item.kind==='img'?'IMAGEM':item.pseudo?`FUNDO ${item.pseudo.toUpperCase()}`:'FUNDO';
-  const gv=globalImageRuleFor(item),isPseudo=!!item.pseudo;
+  const gv=current.gv,isPseudo=!!item.pseudo;
   if($('imgGlobal')){$('imgGlobal').checked=isPseudo?false:!!gv;$('imgGlobal').disabled=isPseudo;$('imgGlobal').closest('label')?.classList.toggle('is-disabled',isPseudo);}
   if($('imgSamePage')){if(isPseudo)$('imgSamePage').checked=false;$('imgSamePage').disabled=isPseudo;}
   if($('imgSetLogo')){$('imgSetLogo').checked=isPseudo?false:(/\/(?:imagens\/)?logo\.[a-z0-9]+$/i.test('/'+globalImageKey(item.originalSrc||item.src))||state.settings?.logoUrl===gv?.value);$('imgSetLogo').disabled=isPseudo;}

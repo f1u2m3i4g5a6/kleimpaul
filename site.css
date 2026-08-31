@@ -846,3 +846,11 @@ body.cms-custom-site-bg #inicio.hero>.kp-runtime-hero-background{z-index:0!impor
 body.cms-custom-site-bg #inicio.hero::before{z-index:1!important;pointer-events:none!important}
 body.cms-custom-site-bg #inicio.hero::after{z-index:1!important;pointer-events:none!important}
 body.cms-custom-site-bg #inicio.hero>.container{position:relative!important;z-index:2!important}
+\n\n/* KP regression cleanup 2026-08-31 */
+header .menu,header .menu-toggle{display:none!important}
+.navbar{grid-template-columns:minmax(0,1fr) auto!important;column-gap:18px!important}
+.header-controls{grid-column:2!important;justify-self:end!important}
+.hero-grid{grid-template-columns:minmax(0,1fr)!important}
+.hero-content{max-width:min(920px,100%)!important}
+.hero-proof{display:none!important}
+@media(max-width:720px){.navbar{grid-template-columns:minmax(0,1fr) auto!important}.logo-text span{display:none!important}}
